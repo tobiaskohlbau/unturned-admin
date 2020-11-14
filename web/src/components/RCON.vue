@@ -122,12 +122,10 @@ import {
   Ref,
 } from "vue";
 
-import { Message } from "element-plus/lib/message";
-
-var backendURL = "ws://localhost:8080/ws";
+var backendURL = "ws://localhost:8080/api/rcon";
 
 if (import.meta.env.MODE == "production") {
-  backendURL = "wss://" + document.location.host + "/ws";
+  backendURL = "wss://" + document.location.host + "/api/rcon";
 }
 
 export default defineComponent({

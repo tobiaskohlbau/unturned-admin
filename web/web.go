@@ -5,7 +5,6 @@ import (
 	"io/fs"
 )
 
-//go:generate npm run build
 //go:embed dist/**
 var content embed.FS
 
