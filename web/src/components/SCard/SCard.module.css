@@ -1,0 +1,16 @@
+.card__title {
+  margin: 12px 0;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.card__content {
+  overflow: hidden;
+  flex-grow: 1;
+}
+
+.card__actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}

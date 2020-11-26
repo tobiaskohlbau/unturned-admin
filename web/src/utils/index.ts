@@ -1,3 +1,7 @@
-import { http, HttpResponse } from "./http";
+import { http, httpPut, httpDelete, HttpResponse } from "./http";
 
-export { http, HttpResponse };
+export { http, HttpResponse, httpPut, httpDelete };
+
+export * from './auth';
+
+export * from './detect';

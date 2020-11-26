@@ -1,32 +1,26 @@
 <template>
-  <div class="app">
-    <rcon width="600px" height="400px"></rcon>
-    <screenshot width="600px" height="400px"></screenshot>
+  <div class="container">
+    <router-view />
   </div>
 </template>
 
-<style lang="scss" scoped>
-.app {
+<style scoped>
+.container {
   display: flex;
-  justify-content: space-around;
-  flex-wrap: wrap;
-  margin-top: -24px;
-
-  > * {
-    margin-top: 24px;
-  }
+  align-content: center;
+  min-height: 100vh;
 }
 </style>
 
 <script>
 import RCON from './components/RCON.vue'
-import Screenshot from './components/Screenshot.vue'
+import Manager from './components/Manager.vue'
 
 export default {
   name: 'App',
   components: {
     'rcon': RCON,
-    'screenshot': Screenshot,
+    'manager': Manager,
   }
 }
 </script>

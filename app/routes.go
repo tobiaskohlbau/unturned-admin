@@ -1,17 +1,22 @@
 package app
 
 import (
+	"crypto/ed25519"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/tobiaskohlbau/unturned-admin/web"
 )
 
 func (s *appServer) routes() {
 	api := &apiServer{
+		appServer: s,
+
 		wsMaxMessageSize:   8192,
 		wsWriteWait:        10 * time.Second,
 		wsPongWait:         60 * time.Second,
@@ -25,8 +30,23 @@ func (s *appServer) routes() {
 		rconConnector = establishMockRCONConnection
 	}
 
-	s.router.Get("/api/rcon", api.handleRCON(rconConnector))
-	s.router.Get("/api/screenshots", api.handleScreenshots())
+	seed := []byte(os.Getenv("SIGNATURE_SEED"))
+	s.privateKey = ed25519.NewKeyFromSeed(seed)
+
+	apiRouter := chi.NewRouter()
+
+	apiRouter.Post("/login", api.handleLogin())
+	apiRouter.Get("/rcon", s.requirePermission("ADMIN", api.handleRCON(rconConnector)))
+	apiRouter.Get("/backup", s.requirePermission("ADMIN", api.handleBackup()))
+	apiRouter.Get("/update", s.requirePermission("ADMIN", api.handleUpdate(rconConnector)))
+	apiRouter.Delete("/update", s.requirePermission("ADMIN", api.handleUpdateCancel()))
+	apiRouter.Route("/files", func(r chi.Router) {
+		r.Get("/", s.requirePermission("ADMIN", api.handleFiles()))
+		r.Put("/", s.requirePermission("ADMIN", api.handleFilesSave()))
+		r.Delete("/", s.requirePermission("ADMIN", api.handleFilesDelete()))
+	})
+
+	s.router.Mount("/api", apiRouter)
 
 	// handle static files
 	if s.devMode {

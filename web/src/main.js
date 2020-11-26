@@ -1,5 +1,37 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import './index.css'
+import router from './router';
 
-createApp(App).mount('#app')
+import { SCard, SCardTitle, SCardContent, SCardActions } from './components/SCard';
+import SButton from './components/SButton.vue';
+import SInput from './components/SInput.vue';
+import SSwitch from './components/SSwitch.vue';
+import SScroller from './components/SScroller.vue';
+import SPopup from './components/SPopup.vue';
+
+const app = createApp(App);
+
+app.component('SCard', SCard);
+app.component('SCardTitle', SCardTitle);
+app.component('SCardContent', SCardContent);
+app.component('SCardActions', SCardActions);
+app.component('SButton', SButton);
+app.component('SInput', SInput);
+app.component('SSwitch', SSwitch);
+app.component('SScroller', SScroller);
+app.component('SPopup', SPopup);
+
+app.use(router);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').then(function(registration) {
+    }, function(err) {
+      // registration failed :(
+      console.log('ServiceWorker registration failed: ', err);
+    });
+  });
+}
+
+app.mount('#app')

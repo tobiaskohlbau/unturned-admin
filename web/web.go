@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"errors"
 	"io/fs"
 )
 
@@ -17,7 +18,11 @@ func (f extendFS) Open(name string) (fs.File, error) {
 	if name == "." {
 		return f.fsys.Open(f.extend)
 	}
-	return f.fsys.Open(f.extend + "/" + name)
+	file, err := f.fsys.Open(f.extend + "/" + name)
+	if err != nil && errors.Is(err, fs.ErrNotExist) {
+		return f.fsys.Open(f.extend + "/" + "index.html")
+	}
+	return file, err
 }
 
 // Web content
