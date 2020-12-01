@@ -32,7 +32,6 @@
         >Cancle Update</s-button
       >
       <s-button @click.stop="backup">Backup</s-button>
-      <s-button @click.stop="logout">Logout</s-button>
     </s-card-actions>
     <s-popup :show="editorPopup">
       <s-card width="700px" height="600px">
@@ -207,11 +206,6 @@ export default defineComponent({
       }
     };
 
-    const logout = () => {
-      document.cookie = "tid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      router.push('/login');
-    };
-
     return {
       listing,
       deleteFile,
@@ -226,7 +220,6 @@ export default defineComponent({
       filepath,
       path,
       editor,
-      logout,
     };
   },
 });

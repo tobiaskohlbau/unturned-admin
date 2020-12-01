@@ -37,13 +37,17 @@
 import { defineComponent, ref } from "vue";
 import { useRouter } from "vue-router";
 import { Notify } from "../components/SNotification";
+import { useStore } from "../store";
+import { getToken } from "../utils";
 import { httpPost } from "../utils/http";
 export default defineComponent({
   name: "Login",
   setup() {
     const router = useRouter();
+    const store = useStore();
     const username = ref("");
     const password = ref("");
+    const dummy = ref(false);
 
     const login = async () => {
       try {
@@ -51,6 +55,7 @@ export default defineComponent({
           "/api/login",
           JSON.stringify({ username: username.value, password: password.value })
         );
+        store.setToken(getToken());
         router.push({ name: "Home" });
       } catch (e) {
         Notify("failed to login");
@@ -61,6 +66,7 @@ export default defineComponent({
       login,
       username,
       password,
+      dummy,
     };
   },
 });

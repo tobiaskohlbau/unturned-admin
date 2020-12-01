@@ -1,3 +1,5 @@
+import { Token } from '../models';
+
 function getCookie(cname: string): string {
   var name = cname + "=";
   var decodedCookie = decodeURIComponent(document.cookie);
@@ -21,17 +23,19 @@ export function isAuthenticated(): boolean {
   return false;
 }
 
-interface Token {
-  username: string
-  permissions: string[]
+export function getToken(): Token | null {
+  const cookie: string = getCookie("tid");
+  if (cookie == "") {
+    return null;
+  }
+  return JSON.parse(atob(cookie));
 }
 
 export function hasPermission(permission: string): boolean {
-  const cookie: string = getCookie("tid");
-  if (cookie == "") {
+  const token = getToken();
+  if (token == null) {
     return false;
   }
-  const token: Token = JSON.parse(atob(cookie));
   if (token.permissions === undefined) {
     return false;
   }

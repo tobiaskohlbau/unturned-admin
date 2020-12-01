@@ -461,6 +461,7 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 	type user struct {
 		Username     string
 		PasswordHash []byte
+		Permissions  []string
 	}
 	var users []user
 
@@ -490,7 +491,7 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 		var usr *user
 		for _, u := range users {
 			if u.Username == req.Username {
-				usr = &user{Username: u.Username, PasswordHash: u.PasswordHash}
+				usr = &user{Username: u.Username, PasswordHash: u.PasswordHash, Permissions: u.Permissions}
 				break
 			}
 		}
@@ -507,7 +508,8 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 			return
 		}
 
-		if err := s.appServer.setAuthCookies(w, r, Token{Username: "unturned", Permissions: []string{"ADMIN"}}); err != nil {
+		log.Info().Strs("permissions", usr.Permissions).Msg("login succeeded")
+		if err := s.appServer.setAuthCookies(w, r, Token{Username: usr.Username, Permissions: usr.Permissions}); err != nil {
 			http.Error(w, "failed to generate token", http.StatusInternalServerError)
 			return
 		}

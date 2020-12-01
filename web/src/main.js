@@ -9,6 +9,7 @@ import SInput from './components/SInput.vue';
 import SSwitch from './components/SSwitch.vue';
 import SScroller from './components/SScroller.vue';
 import SPopup from './components/SPopup.vue';
+import { storeSymbol, createStore } from './store';
 
 const app = createApp(App);
 
@@ -21,6 +22,8 @@ app.component('SInput', SInput);
 app.component('SSwitch', SSwitch);
 app.component('SScroller', SScroller);
 app.component('SPopup', SPopup);
+
+app.provide(storeSymbol, createStore());
 
 app.use(router);
 

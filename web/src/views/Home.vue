@@ -1,12 +1,28 @@
 <template>
-  <div :class="['container', className]">
-    <rcon></rcon>
-    <manager></manager>
+  <div class="site">
+    <div class="sidebar">
+      <p>Welcome {{ store.state.token.username }}!</p>
+      <p>Your permissions: {{ store.state.token.permissions }}</p>
+      <s-button @click.stop="logout">Logout</s-button>
+    </div>
+    <div :class="['container', className]">
+      <rcon></rcon>
+      <manager></manager>
+    </div>
   </div>
 </template>
 
 <style scoped lang="postcss">
+.site {
+  display: flex;
+}
+
+.side {
+  min-width: 200px;
+}
+
 .container {
+  flex-grow: 1;
   width: 100%;
   display: flex;
   flex-wrap: wrap;
@@ -30,20 +46,23 @@
 </style>
 
 <script>
-import RCON from '../components/RCON.vue'
-import Manager from '../components/Manager.vue'
-import { defineComponent, ref } from 'vue'
-import { useRouter } from 'vue-router';
-import { checkFlexGap } from '../utils';
+import RCON from "../components/RCON.vue";
+import Manager from "../components/Manager.vue";
+import { defineComponent, ref } from "vue";
+import { useRouter } from "vue-router";
+import { useStore } from "../store";
+import { checkFlexGap } from "../utils";
 
 export default defineComponent({
-  name: 'Home',
+  name: "Home",
   components: {
-    'rcon': RCON,
-    'manager': Manager,
+    rcon: RCON,
+    manager: Manager,
   },
   setup() {
     const className = ref("flex-gap");
+    const router = useRouter();
+    const store = useStore();
 
     // Workaround to support safari.
     // Drop if safari supports gap on flex items,
@@ -52,9 +71,16 @@ export default defineComponent({
       className.value = "flex-no-gap";
     }
 
+    const logout = () => {
+      document.cookie = "tid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      router.push('/login');
+    };
+
     return {
       className,
-    }
-  }
+      store,
+      logout,
+    };
+  },
 });
 </script>
