@@ -36,6 +36,7 @@ func (s *appServer) routes() {
 	apiRouter := chi.NewRouter()
 
 	apiRouter.Post("/login", api.handleLogin())
+	apiRouter.Get("/players", s.requirePermission("ADMIN", api.handlePlayers(os.Getenv("UNTURNEDADMIN_ENDPOINT"))))
 	apiRouter.Get("/rcon", s.requirePermission("ADMIN", api.handleRCON(rconConnector)))
 	apiRouter.Get("/backup", s.requirePermission("ADMIN", api.handleBackup()))
 	apiRouter.Get("/update", s.requirePermission("ADMIN", api.handleUpdate(rconConnector)))

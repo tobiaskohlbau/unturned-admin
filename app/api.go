@@ -435,6 +435,27 @@ func (s *apiServer) handleFilesDelete() http.HandlerFunc {
 	}
 }
 
+func (s *apiServer) handlePlayers(upstream string) http.HandlerFunc {
+	type response struct {
+		Status string
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		resp, err := http.Get(upstream)
+		if err != nil {
+			log.Info().Err(err).Msg("failed to retrieve players from game")
+			s.respond(w, r, response{Status: fmt.Errorf("failed to retrieve players from game: %w", err).Error()}, http.StatusInternalServerError)
+			return
+		}
+
+		_, err = io.Copy(w, resp.Body)
+		if err != nil {
+			log.Info().Err(err).Msg("failed to forward player data")
+			s.respond(w, r, response{Status: fmt.Errorf("failed to forward player data: %w", err).Error()}, http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
 func guessContentType(path string) string {
 	file, err := os.Open(path)
 	if err != nil {

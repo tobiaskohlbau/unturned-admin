@@ -8,6 +8,7 @@
     <div :class="['container', className]">
       <rcon></rcon>
       <manager></manager>
+      <unturned-map></unturned-map>
     </div>
   </div>
 </template>
@@ -48,6 +49,7 @@
 <script>
 import RCON from "../components/RCON.vue";
 import Manager from "../components/Manager.vue";
+import UnturnedMap from "../components/UnturnedMap.vue";
 import { defineComponent, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "../store";
@@ -58,6 +60,7 @@ export default defineComponent({
   components: {
     rcon: RCON,
     manager: Manager,
+    'unturned-map': UnturnedMap,
   },
   setup() {
     const className = ref("flex-gap");
