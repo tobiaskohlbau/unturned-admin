@@ -45,7 +45,6 @@ export default defineComponent({
       const resp = await fetch("/api/players");
       const players = await resp.json();
       players.forEach((item) => {
-        console.log(item);
         const positionX = props.size * item.x;
         const positionY = props.size * item.y;
 
