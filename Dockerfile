@@ -6,7 +6,7 @@
 # COPY web /web
 # RUN npm run build
 
-FROM ghcr.io/tobiaskohlbau/golang:tip AS go-builder
+FROM golang:1.16-rc AS go-builder
 
 WORKDIR /app
 COPY go.mod /app
