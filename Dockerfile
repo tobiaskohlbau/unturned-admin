@@ -15,6 +15,7 @@ RUN go mod download
 COPY main.go /app/
 COPY web/web.go /app/web/
 COPY app /app/app
+COPY mock /app/mock
 # COPY --from=node-builder /web/dist /app/web/dist
 COPY ./web/dist /app/web/dist
 RUN CGO_ENABLED=0 go build
