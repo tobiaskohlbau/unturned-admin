@@ -14,6 +14,7 @@
   background-color: rgba(22, 22, 22, 0.5);
   width: 100%;
   height: 100%;
+  z-index: 100;
 }
 
 .popup_content {

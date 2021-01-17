@@ -2,13 +2,13 @@
   <div class="site">
     <div class="sidebar">
       <p>Welcome {{ store.state.token.username }}!</p>
-      <p>Your permissions: {{ store.state.token.permissions }}</p>
       <s-button @click.stop="logout">Logout</s-button>
     </div>
     <div :class="['container', className]">
-      <rcon></rcon>
-      <manager></manager>
+      <rcon v-if="hasPermission('MODERATOR')"></rcon>
+      <manager v-if="hasPermission('MODERATOR')"></manager>
       <unturned-map></unturned-map>
+      <users v-if="hasPermission('ADMIN')"></users>
     </div>
   </div>
 </template>
@@ -50,10 +50,12 @@
 import RCON from "../components/RCON.vue";
 import Manager from "../components/Manager.vue";
 import UnturnedMap from "../components/UnturnedMap.vue";
+import Users from "../components/Users.vue";
 import { defineComponent, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "../store";
 import { checkFlexGap } from "../utils";
+import { hasPermission, isAuthenticated } from '../utils';
 
 export default defineComponent({
   name: "Home",
@@ -61,6 +63,7 @@ export default defineComponent({
     rcon: RCON,
     manager: Manager,
     'unturned-map': UnturnedMap,
+    users: Users,
   },
   setup() {
     const className = ref("flex-gap");
@@ -83,6 +86,7 @@ export default defineComponent({
       className,
       store,
       logout,
+      hasPermission,
     };
   },
 });

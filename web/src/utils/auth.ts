@@ -16,6 +16,14 @@ function getCookie(cname: string): string {
   return "";
 }
 
+export function isActivated(): boolean | null {
+  const token = getToken();
+  if (token === null) {
+    return null;
+  }
+  return token.activated;
+}
+
 export function isAuthenticated(): boolean {
   if (getCookie("tid") !== "") {
     return true;

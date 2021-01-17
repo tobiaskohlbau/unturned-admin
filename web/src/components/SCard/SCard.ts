@@ -18,6 +18,6 @@ function createComponent(name: string, clz: string) {
   });
 }
 
-export const SCardTitle = createComponent('SCardContent', 'card__title');
-export const SCardContent = createComponent('SCardContent', 'card__content');
-export const SCardActions = createComponent('SCardActions', 'card__actions');
+export const SCardTitle = createComponent('SCardContent', 'cardTitle');
+export const SCardContent = createComponent('SCardContent', 'cardContent');
+export const SCardActions = createComponent('SCardActions', 'cardActions');

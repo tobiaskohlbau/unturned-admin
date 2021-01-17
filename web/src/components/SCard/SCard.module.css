@@ -1,15 +1,15 @@
-.card__title {
+.cardTitle {
   margin: 12px 0;
   font-weight: 600;
   font-size: 18px;
 }
 
-.card__content {
+.cardContent {
   overflow: hidden;
   flex-grow: 1;
 }
 
-.card__actions {
+.cardActions {
   margin-top: 8px;
   display: flex;
   justify-content: flex-end;

@@ -1,7 +1,7 @@
 package app
 
 import (
-	"crypto/ed25519"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -30,21 +30,24 @@ func (s *appServer) routes() {
 		rconConnector = establishMockRCONConnection
 	}
 
-	seed := []byte(os.Getenv("SIGNATURE_SEED"))
-	s.privateKey = ed25519.NewKeyFromSeed(seed)
+	s.router.Use(s.userMiddleware)
 
 	apiRouter := chi.NewRouter()
 
 	apiRouter.Post("/login", api.handleLogin())
-	apiRouter.Get("/players", s.requirePermission("ADMIN", api.handlePlayers(os.Getenv("UNTURNEDADMIN_ENDPOINT"))))
-	apiRouter.Get("/rcon", s.requirePermission("ADMIN", api.handleRCON(rconConnector)))
-	apiRouter.Get("/backup", s.requirePermission("ADMIN", api.handleBackup()))
-	apiRouter.Get("/update", s.requirePermission("ADMIN", api.handleUpdate(rconConnector)))
-	apiRouter.Delete("/update", s.requirePermission("ADMIN", api.handleUpdateCancel()))
+	apiRouter.Get("/login/steam", api.handleSteamLogin(fmt.Sprintf("%s/api/login/steam/callback", os.Getenv("BASE_URL"))))
+	apiRouter.Get("/login/steam/callback", api.handleSteamCallback(os.Getenv("STEAM_APIKEY")))
+	apiRouter.Get("/users", s.requirePermission("ADMIN", api.handleUsers()))
+	apiRouter.Post("/users/{username}", s.requirePermission("ADMIN", api.handleUserSave()))
+	apiRouter.Get("/players", s.requireAuthenticated(api.handlePlayers(os.Getenv("UNTURNEDADMIN_ENDPOINT"))))
+	apiRouter.Get("/rcon", s.requirePermission("MODERATOR", api.handleRCON(rconConnector)))
+	apiRouter.Get("/backup", s.requirePermission("MODERATOR", api.handleBackup()))
+	apiRouter.Get("/update", s.requirePermission("MODERATOR", api.handleUpdate(rconConnector)))
+	apiRouter.Delete("/update", s.requirePermission("MODERATOR", api.handleUpdateCancel()))
 	apiRouter.Route("/files", func(r chi.Router) {
-		r.Get("/", s.requirePermission("ADMIN", api.handleFiles()))
-		r.Put("/", s.requirePermission("ADMIN", api.handleFilesSave()))
-		r.Delete("/", s.requirePermission("ADMIN", api.handleFilesDelete()))
+		r.Get("/", s.requirePermission("MODERATOR", api.handleFiles()))
+		r.Put("/", s.requirePermission("MODERATOR", api.handleFilesSave()))
+		r.Delete("/", s.requirePermission("MODERATOR", api.handleFilesDelete()))
 	})
 
 	s.router.Mount("/api", apiRouter)

@@ -7,4 +7,11 @@ export interface File {
 export interface Token {
   username: string
   permissions: string[]
+  activated: boolean
+}
+
+export interface User {
+  username: string
+  permissions: string[]
+  activated: boolean
 }

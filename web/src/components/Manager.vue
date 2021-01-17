@@ -122,9 +122,7 @@ export default defineComponent({
         response = await http<Response>(`/api/files?path=${path.value}`);
         listing.value = response.parsedBody as Response;
       } catch (err) {
-        console.log(err);
         Notify("Failed to fetch files!");
-        router.push({ name: "Login", params: { error: "true" }});
       }
     };
 

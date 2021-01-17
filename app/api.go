@@ -10,13 +10,17 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/rs/zerolog/log"
+	"github.com/tobiaskohlbau/unturned-admin/store"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/websocket"
@@ -34,11 +38,11 @@ type apiServer struct {
 	wsPingPeriod       time.Duration // Send pings to peer with this period. Must be less than pongWait.
 	wsCloseGracePerdio time.Duration
 
+	steamCallbackURL string
 	updateCancelFunc func()
 }
 
 func (a *apiServer) respond(w http.ResponseWriter, r *http.Request, data interface{}, status int) {
-	w.WriteHeader(status)
 	if data != nil {
 		switch d := data.(type) {
 		case error:
@@ -63,12 +67,20 @@ func (s *apiServer) wsError(ws *websocket.Conn, msg string, err error) {
 
 func (s *apiServer) handleRCON(connector func() (net.Conn, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		done := make(chan struct{})
+
 		ws, err := s.upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			s.respond(w, r, err, http.StatusInternalServerError)
 			return
 		}
 		defer ws.Close()
+
+		ws.SetCloseHandler(func(code int, text string) error {
+			log.Info().Msg("ws remote closed connection")
+			close(done)
+			return nil
+		})
 
 		conn, err := connector()
 		if err != nil {
@@ -79,7 +91,6 @@ func (s *apiServer) handleRCON(connector func() (net.Conn, error)) http.HandlerF
 
 		fmt.Fprintf(conn, "login %s\n", "changeme")
 
-		done := make(chan struct{})
 		// ping regulary to keep websocket open
 		go func() {
 			ticker := time.NewTicker(s.wsPingPeriod)
@@ -100,6 +111,7 @@ func (s *apiServer) handleRCON(connector func() (net.Conn, error)) http.HandlerF
 		s.pumpInput(ws, conn)
 
 		<-done
+		log.Info().Msg("ws closed")
 	}
 }
 
@@ -129,6 +141,11 @@ func (s *apiServer) pumpOutput(ws *websocket.Conn, r io.Reader, done chan struct
 			break
 		}
 	}
+
+	if errors.Is(scanner.Err(), net.ErrClosed) || errors.Is(scanner.Err(), io.ErrClosedPipe) {
+		return
+	}
+
 	if scanner.Err() != nil {
 		log.Info().Err(scanner.Err()).Msg("failed to scan")
 	}
@@ -152,20 +169,19 @@ func establishMockRCONConnection() (net.Conn, error) {
 	server, client := net.Pipe()
 
 	go func() {
+		scanner := bufio.NewScanner(server)
 		defer server.Close()
-		for {
-			server.Write([]byte("Hello World\n"))
-			time.Sleep(1 * time.Second)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "login") {
+				fmt.Fprintf(server, "RocketMock\n")
+			}
+			if line == "players" {
+				fmt.Fprintf(server, "PlayerID: 1 Name: Neukon Character: Neukon Ping: 23\n")
+			}
 		}
-	}()
-
-	go func() {
-		defer server.Close()
-		for {
-			ignore := make([]byte, 1024)
-			server.Read(ignore)
-			fmt.Printf("%s", ignore)
-			time.Sleep(1 * time.Second)
+		if err := scanner.Err(); err != nil {
+			log.Error().Err(err).Msg("failed to read command from mock")
 		}
 	}()
 
@@ -479,25 +495,6 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	type user struct {
-		Username     string
-		PasswordHash []byte
-		Permissions  []string
-	}
-	var users []user
-
-	userFile, err := os.Open("users.json")
-	if err != nil {
-		log.Error().Err(err).Msg("failed to open users list")
-		return func(w http.ResponseWriter, r *http.Request) {
-		}
-	}
-
-	if err := json.NewDecoder(userFile).Decode(&users); err != nil {
-		log.Error().Err(err).Msg("failed to read users")
-		return func(w http.ResponseWriter, r *http.Request) {
-		}
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		log.Info().Msg("got login request")
@@ -509,15 +506,8 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 			return
 		}
 
-		var usr *user
-		for _, u := range users {
-			if u.Username == req.Username {
-				usr = &user{Username: u.Username, PasswordHash: u.PasswordHash, Permissions: u.Permissions}
-				break
-			}
-		}
-
-		if usr == nil {
+		usr, ok := s.appServer.userStore.GetByUsername(req.Username)
+		if !ok {
 			log.Error().Str("username", req.Username).Msg("user does not exist")
 			s.respond(w, r, fmt.Errorf("username or password wrong"), http.StatusBadRequest)
 			return
@@ -530,10 +520,259 @@ func (s *apiServer) handleLogin() http.HandlerFunc {
 		}
 
 		log.Info().Strs("permissions", usr.Permissions).Msg("login succeeded")
-		if err := s.appServer.setAuthCookies(w, r, Token{Username: usr.Username, Permissions: usr.Permissions}); err != nil {
+		if err := s.appServer.setAuthCookies(w, r, &Token{Username: usr.Username, Permissions: usr.Permissions, Activated: usr.Activated}); err != nil {
 			http.Error(w, "failed to generate token", http.StatusInternalServerError)
 			return
 		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func (s *apiServer) handleSteamLogin(callback string) http.HandlerFunc {
+	s.steamCallbackURL = callback
+
+	callbackURL, err := url.Parse(callback)
+	if err != nil {
+		log.Err(err).Msg("failed to parse callback url")
+		return nil
+	}
+
+	const (
+		apiLoginEndpoint       = "https://steamcommunity.com/openid/login"
+		apiUserSummaryEndpoint = "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=%s&steamids=%s"
+		openIDMode             = "checkid_setup"
+		openIDNs               = "http://specs.openid.net/auth/2.0"
+		openIDIdentifier       = "http://specs.openid.net/auth/2.0/identifier_select"
+	)
+
+	urlValues := map[string]string{
+		"openid.claimed_id": openIDIdentifier,
+		"openid.identity":   openIDIdentifier,
+		"openid.mode":       openIDMode,
+		"openid.ns":         openIDNs,
+		"openid.realm":      fmt.Sprintf("%s://%s", callbackURL.Scheme, callbackURL.Host),
+		"openid.return_to":  callbackURL.String(),
+	}
+
+	u, err := url.Parse(apiLoginEndpoint)
+	if err != nil {
+		log.Err(err).Msg("failed to parse login endpoint")
+		return nil
+	}
+
+	v := u.Query()
+	for key, value := range urlValues {
+		v.Set(key, value)
+	}
+	u.RawQuery = v.Encode()
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, u.String(), http.StatusTemporaryRedirect)
+	}
+}
+
+func (s *apiServer) handleSteamCallback(steamAPIKey string) http.HandlerFunc {
+	const (
+		apiLoginEndpoint = "https://steamcommunity.com/openid/login"
+		openIDNs         = "http://specs.openid.net/auth/2.0"
+	)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		if params.Encode() == "" && r.Method == "POST" {
+			r.ParseForm()
+			params = r.Form
+		}
+
+		if params.Get("openid.mode") != "id_res" {
+			s.respond(w, r, fmt.Errorf("expected mode id_res"), http.StatusBadRequest)
+			return
+		}
+
+		if params.Get("openid.return_to") != s.steamCallbackURL {
+			s.respond(w, r, fmt.Errorf("return url does not match registered ballback url"), http.StatusBadRequest)
+			return
+		}
+
+		v := make(url.Values)
+		v.Set("openid.assoc_handle", params.Get("openid.assoc_handle"))
+		v.Set("openid.signed", params.Get("openid.signed"))
+		v.Set("openid.sig", params.Get("openid.sig"))
+		v.Set("openid.ns", params.Get("openid.ns"))
+
+		split := strings.Split(params.Get("openid.signed"), ",")
+		for _, item := range split {
+			v.Set("openid."+item, params.Get("openid."+item))
+		}
+		v.Set("openid.mode", "check_authentication")
+
+		resp, err := http.PostForm(apiLoginEndpoint, v)
+		if err != nil {
+			s.respond(w, r, fmt.Errorf("failed to post validation request: %w", err), http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+		content, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			s.respond(w, r, fmt.Errorf("failed to read response from validation request: %w", err), http.StatusInternalServerError)
+			return
+		}
+
+		response := strings.Split(string(content), "\n")
+		if response[0] != "ns:"+openIDNs {
+			s.respond(w, r, fmt.Errorf("failed to verify auth request: %w", err), http.StatusInternalServerError)
+			return
+		}
+
+		if response[1] == "is_valid:false" {
+			s.respond(w, r, fmt.Errorf("invalid auth"), http.StatusInternalServerError)
+			return
+		}
+
+		openIDURL := params.Get("openid.claimed_id")
+		validationRegExp := regexp.MustCompile("^(http|https)://steamcommunity.com/openid/id/[0-9]{15,25}$")
+		if !validationRegExp.MatchString(openIDURL) {
+			s.respond(w, r, fmt.Errorf("claim id"), http.StatusInternalServerError)
+			return
+		}
+
+		steamID := regexp.MustCompile("\\D+").ReplaceAllString(openIDURL, "")
+
+		usr, ok := s.appServer.userStore.GetBySteamID(steamID)
+		if !ok {
+			log.Error().Str("steamID", steamID).Msg("user with steamid does not exist")
+			usr, err = fetchUser(steamID, steamAPIKey)
+			if err != nil {
+				log.Err(err).Msg("failed to fetch user")
+				s.respond(w, r, fmt.Errorf("failed to create user"), http.StatusBadRequest)
+				return
+			}
+			s.appServer.userStore.Add(usr)
+		}
+
+		log.Info().Strs("permissions", usr.Permissions).Str("user", usr.Username).Msg("login succeeded")
+		if err := s.appServer.setAuthCookies(w, r, &Token{Username: usr.Username, Permissions: usr.Permissions, Activated: usr.Activated}); err != nil {
+			http.Error(w, "failed to generate token", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, os.Getenv("BASE_URL"), http.StatusTemporaryRedirect)
+	}
+}
+
+func fetchUser(steamID, apiKey string) (store.User, error) {
+	const apiUserSummaryEndpoint = "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=%s&steamids=%s"
+	if steamID == "" {
+		return store.User{}, fmt.Errorf("invalid steamID")
+	}
+
+	apiURL := fmt.Sprintf(apiUserSummaryEndpoint, apiKey, steamID)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return store.User{}, fmt.Errorf("failed to create user request: %w", err)
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return store.User{}, fmt.Errorf("failed to invoke user request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return store.User{}, fmt.Errorf("bad response for user request: %d", resp.StatusCode)
+	}
+
+	apiResponse := struct {
+		Response struct {
+			Players []struct {
+				UserID              string `json:"steamid"`
+				NickName            string `json:"personaname"`
+				Name                string `json:"realname"`
+				AvatarURL           string `json:"avatarfull"`
+				LocationCountryCode string `json:"loccountrycode"`
+				LocationStateCode   string `json:"locstatecode"`
+			} `json:"players"`
+		} `json:"response"`
+	}{}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
+		return store.User{}, fmt.Errorf("failed to decode api response: %w", err)
+	}
+
+	player := apiResponse.Response.Players[0]
+
+	return store.User{
+		Username:    player.NickName,
+		Activated:   false,
+		SteamID:     player.UserID,
+		Permissions: []string{},
+	}, nil
+}
+
+func (s *apiServer) handleUsers() http.HandlerFunc {
+	type user struct {
+		Username    string   `json:"username"`
+		Permissions []string `json:"permissions"`
+		Activated   bool     `json:"activated"`
+		SteamID     string   `json:"steamID"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		users, err := s.appServer.userStore.Users()
+		if err != nil {
+			s.respond(w, r, fmt.Errorf("unable to list users"), http.StatusInternalServerError)
+			return
+		}
+
+		outputUsers := make([]user, len(users))
+		for i, u := range users {
+			outputUsers[i] = user{
+				Username:    u.Username,
+				Permissions: u.Permissions,
+				Activated:   u.Activated,
+				SteamID:     u.SteamID,
+			}
+		}
+
+		enc := json.NewEncoder(w)
+
+		if pretty := r.URL.Query().Get("pretty"); pretty != "" {
+			enc.SetIndent("", "\t")
+		}
+
+		if err := enc.Encode(outputUsers); err != nil {
+			s.respond(w, r, fmt.Errorf("unable to encode users"), http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func (s *apiServer) handleUserSave() http.HandlerFunc {
+	type req struct {
+		Username    string   `json:"username"`
+		Permissions []string `json:"permissions"`
+		Activated   bool     `json:"activated"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		username := chi.URLParam(r, "username")
+
+		usr, ok := s.appServer.userStore.GetByUsername(username)
+		if !ok {
+			s.respond(w, r, fmt.Errorf("invalid username in request"), http.StatusBadRequest)
+			return
+		}
+
+		var parsedReq req
+		if err := json.NewDecoder(r.Body).Decode(&parsedReq); err != nil {
+			s.respond(w, r, fmt.Errorf("bad request"), http.StatusBadRequest)
+			return
+		}
+
+		usr.Permissions = parsedReq.Permissions
+		usr.Activated = parsedReq.Activated
+		usr.Username = parsedReq.Username
+		s.appServer.userStore.Add(usr)
 
 		w.WriteHeader(http.StatusOK)
 	}
