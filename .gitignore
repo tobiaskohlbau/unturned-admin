@@ -1,3 +1,4 @@
 Makefile
+database.db
 users.json
 .envrc
