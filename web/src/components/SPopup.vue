@@ -1,7 +1,10 @@
 <template>
-  <div class="popup" v-if="show">
-    <div class="popup_content">
-      <slot class="popup_content"></slot>
+  <div>
+    <slot name="activator" class="popup_actor" :on="listener"></slot>
+    <div class="popup" v-if="visible">
+      <div class="popup_content" v-click-outside="closeConditional">
+        <slot class="popup_content"></slot>
+      </div>
     </div>
   </div>
 </template>
@@ -30,20 +33,47 @@
 </style>
 
 <script lang="ts">
-import {
-  defineComponent, onUpdated, ref,
-} from "vue";
+import { defineComponent, onUpdated, ref, toRefs, watch } from "vue";
 
 export default defineComponent({
   name: "SPopup",
   props: {
-    show: {
+    persistent: {
       type: Boolean,
       default: false,
     },
   },
-  setup(props, { attrs }) {
-    return {};
+  emits: ["update:modelValue"],
+  setup(props, { attrs, emit }) {
+    const visible = ref(false);
+
+    const listener = {
+      click: (e: MouseEvent) => {
+        visible.value = true;
+      }
+    };
+
+    const open = () => {
+      visible.value = true;
+    };
+
+    const close = () => {
+      visible.value = false;
+    }
+
+    const closeConditional = () => {
+      if (props.persistent !== true) {
+        visible.value = false;
+      }
+    }
+
+    return {
+      visible,
+      listener,
+      open,
+      close,
+      closeConditional,
+    };
   },
 });
 </script>

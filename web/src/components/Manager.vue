@@ -16,7 +16,7 @@
           </div>
         </div>
         <div class="line" v-for="file in listing.files" :key="file.name">
-          <div @click="openFile(file)">
+          <div @click.stop="openFile(file)">
             <i class="material-icons">text_snippet</i>
             {{ file.name }}
           </div>
@@ -33,7 +33,7 @@
       >
       <s-button @click.stop="backup">Backup</s-button>
     </s-card-actions>
-    <s-popup :show="editorPopup">
+    <s-popup ref="editorPopup">
       <s-card width="700px" height="600px">
         <s-card-title>Editor</s-card-title>
         <s-card-content>
@@ -41,18 +41,18 @@
         </s-card-content>
         <s-card-actions>
           <s-button @click.stop="editor.save()">Save</s-button>
-          <s-button @click.stop="editorPopup = false">Close</s-button>
+          <s-button @click.stop="editorPopup.close">Close</s-button>
         </s-card-actions>
       </s-card>
     </s-popup>
-    <s-popup :show="imagePopup">
+    <s-popup ref="imagePopup">
       <s-card width="700px" height="600px">
         <s-card-title>Imageviewer</s-card-title>
         <s-card-content>
           <img :src="'/api/files?path=' + filepath" />
         </s-card-content>
         <s-card-actions>
-          <s-button @click.stop="imagePopup = false">Close</s-button>
+          <s-button @click.stop="imagePopup.close">Close</s-button>
         </s-card-actions>
       </s-card>
     </s-popup>
@@ -92,6 +92,7 @@ import { Notify } from "./SNotification";
 import { File } from "../models";
 import Editor from "./Editor.vue";
 import { useRouter } from "vue-router";
+import SPopup from "./SPopup.vue";
 
 interface Response {
   files: File[];
@@ -102,11 +103,13 @@ export default defineComponent({
   name: "Manager",
   components: {
     editor: Editor,
+    SPopup,
   },
   setup({}, { attrs, emit }) {
+    const imagePopup = ref(null);
+    const editorPopup = ref(null);
+
     const path = ref(".");
-    const editorPopup = ref(false);
-    const imagePopup = ref(false);
     const listing: Ref<Response> = ref({
       files: new Array<File>(),
       folders: new Array<string>(),
@@ -152,7 +155,7 @@ export default defineComponent({
         }
       } catch (err) {
         Notify(`Failed to delete file! ${err}`);
-        router.push('/login');
+        router.push("/login");
       }
     };
 
@@ -160,11 +163,11 @@ export default defineComponent({
       filepath.value = file.path + "/" + file.name;
 
       if (file.content_type == "image/jpeg") {
-        imagePopup.value = true;
+        imagePopup.value.open();
         return;
       }
 
-      editorPopup.value = true;
+      editorPopup.value.open();
     };
 
     const scheduleUpdate = async () => {
@@ -177,7 +180,7 @@ export default defineComponent({
         updateInProgress.value = true;
       } catch (err) {
         Notify(`Failed to update server! ${err}`);
-        router.push('/login');
+        router.push("/login");
       }
     };
 
@@ -189,7 +192,7 @@ export default defineComponent({
         updateInProgress.value = false;
       } catch (err) {
         Notify(`Failed to cancel update! ${err}`);
-        router.push('/login');
+        router.push("/login");
       }
     };
 
@@ -200,7 +203,7 @@ export default defineComponent({
         Notify("Backup completed!");
       } catch (err) {
         Notify(`Failed to backup server! ${err}`);
-        router.push('/login');
+        router.push("/login");
       }
     };
 
