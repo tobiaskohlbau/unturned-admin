@@ -7,12 +7,13 @@
   },
   "dependencies": {
     "monaco-editor": "^0.21.2",
-    "vue": "^3.0.4",
+    "vue": "^3.0.5",
     "vue-router": "^4.0.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^1.0.6",
     "@vue/compiler-sfc": "^3.0.4",
     "postcss-nested": "^4.2.3",
-    "vite": "file:../../../vitejs/vite"
+    "vite": "^2.0.0-beta.30"
   }
 }
