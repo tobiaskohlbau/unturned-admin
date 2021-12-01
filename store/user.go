@@ -10,7 +10,7 @@ import (
 type User struct {
 	Username     string
 	Activated    bool
-	PasswordHash []byte
+	PasswordHash []byte `json:",omitempty"`
 	Permissions  []string
 	SteamID      string
 }

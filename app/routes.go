@@ -3,14 +3,12 @@ package app
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/tobiaskohlbau/unturned-admin/web"
 )
 
 func (s *appServer) routes() {
@@ -49,17 +47,15 @@ func (s *appServer) routes() {
 		r.Put("/", s.requirePermission("MODERATOR", api.handleFilesSave()))
 		r.Delete("/", s.requirePermission("MODERATOR", api.handleFilesDelete()))
 	})
+	apiRouter.Get("/user", api.handleUser())
 
 	s.router.Mount("/api", apiRouter)
 
-	// handle static files
 	if s.devMode {
 		target, err := url.Parse("http://localhost:3000")
 		if err != nil {
 			log.Panic("failed to create dev proxy: %w", err)
 		}
 		s.router.Get("/*", httputil.NewSingleHostReverseProxy(target).ServeHTTP)
-	} else {
-		s.router.Get("/*", http.FileServer(http.FS(web.Content)).ServeHTTP)
 	}
 }

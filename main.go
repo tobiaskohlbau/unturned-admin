@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/tobiaskohlbau/unturned-admin/app"
 	"github.com/tobiaskohlbau/unturned-admin/mock"
@@ -22,6 +23,7 @@ func run() error {
 	if *devMode {
 		go func() {
 			mock := mock.New()
+			os.Setenv("UNTURNEDADMIN_ENDPOINT", "http://localhost:8000")
 			http.ListenAndServe(":8000", mock)
 		}()
 	}

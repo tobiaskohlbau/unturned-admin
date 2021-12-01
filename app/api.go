@@ -777,3 +777,16 @@ func (s *apiServer) handleUserSave() http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 	}
 }
+
+func (s *apiServer) handleUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		usr, err := GetUser(r.Context())
+		if err != nil {
+			log.Error().Err(err).Msg("no user present")
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		usr.PasswordHash = nil
+		s.respond(w, r, usr, http.StatusOK)
+	}
+}

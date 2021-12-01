@@ -44,7 +44,7 @@ func New(devMode bool) http.Handler {
 
 	// insert or update default users
 	f, err := os.Open("users.json")
-	var pathErr fs.PathError
+	var pathErr *fs.PathError
 	if err != nil && errors.As(err, &pathErr) {
 		log.Error().Err(err).Msg("failed to open default users")
 	}
